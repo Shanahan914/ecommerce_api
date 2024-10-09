@@ -6,7 +6,7 @@ class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     class Meta:
         model = CustomUser
-        fields  = ['email','password' ,'first_name', 'last_name', 'is_active', 'is_admin', 'is_staff']
+        fields  = ['email','password' ,'first_name', 'last_name', 'is_active', 'is_superuser', 'is_staff']
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -73,6 +73,8 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     order_items = OrderItemSerializer(many=True, read_only = True)
+
+    status = serializers.ChoiceField(choices=Order.statusCodes.choices)
 
     class Meta:
         model = Order

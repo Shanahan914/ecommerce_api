@@ -134,7 +134,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 #setting user model
 AUTH_USER_MODEL = 'ecommerce.CustomUser'
 
-rest_framework = {
-    'DEFAULT_AUTHENTICATION_CLASSES':
-    'rest_framework_simplejwt.authentication.JWTAuthentication'
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
 }

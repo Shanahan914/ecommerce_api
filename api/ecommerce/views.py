@@ -11,6 +11,7 @@ import json
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 import stripe
+from decimal import Decimal
 
 # Create your views here.
 
@@ -76,28 +77,65 @@ class view_products(generics.ListAPIView):
 
 
 # view all orders for customer and create an order
-# GET TODO: POST
+# GET & POST
 # /order/
-# class view_order(generics.ListAPIView):
-#     serializer_class = OrderSerializer
-#     def get_queryset(self):
-#         return Order.objects.filter(owner = self.request.user)
-    
 class view_order(APIView):
-    
+
     def get(self, request):
         try:
             objects = Order.objects.filter(owner = self.request.user)
-            serializer = OrderSerializer(objects)
-            return Response(serializer.data, staus=200)
+            serializer = OrderSerializer(objects, many=True)
+            return Response(serializer.data, status=200)
         except Exception as e:
-            return Response({"Error:", e}, status=500)
+            return Response({f"Error: str{e}"}, status=500)
     
     def post(self, request):
-        #create order
-        # cart = Cart.objects.get(owner = request.user)
-        print(request.user)
-        return Response({"msg":"test"})
+        # CREATE CART
+        # fetch cart and cartitem data
+        try:
+            cart = Cart.objects.get(owner = request.user)
+            cartItems = CartItem.objects.filter(cart = cart)
+
+            if not cartItems.exists():
+                return Response({"msg" : "cart is empty"}, status=400)
+            
+            data = CartItemSerializer(cartItems, many=True).data
+            total = sum([Decimal(item['quantity']) * Decimal(item['product_detail']['price']) for item in data])
+
+        except Cart.DoesNotExist as e:
+            print(f"error ; {e}")
+            return Response({"msg":"cart not found"}, status=404)
+        except (ValueError, TypeError) as e:
+            return Response({"msg":"error when calculating total price"}, status=500)
+        
+        # enter data into order table
+        order = Order.objects.create(owner = request.user, total_price = total)
+        serializer = OrderSerializer(order)
+
+        
+        
+        # CREATE ORDER ITEMS
+        try:
+            order_items = [
+            OrderItem(
+                order=order,
+                product = item.product,
+                quantity = item.quantity,
+            )
+            for item in cartItems
+        ]
+            OrderItem.objects.bulk_create(order_items)
+        except Exception as e:
+            return Response({"msg": "order raised but error raised while creating order items"}, status=500)
+
+        # delete cart items
+        try:
+            cartItems.delete()
+        except Exception as e:
+            return Response({"msg": "order raised but error raised while deleting cart items"}, status=500)
+        
+        #return the order
+        return Response(serializer.data, status=201)
 
 
 # view single order
@@ -114,18 +152,22 @@ class view_single_order(generics.RetrieveAPIView):
 # checkout - proceeds to payment for the order
 # POST 
 # /checkout/<order_id>
-# NOTE so we just need
 class checkout(APIView):
     serializer_class = PaymentSerializer
     queryset = Payment.objects.all()
 
     def post(self, request, pk):
-        user = request.user.id 
+        user = request.user
+        print(user)
         order_id = pk
+        print(order_id)
         order = Order.objects.get(id = order_id)
+        print(order)
 
         #create the stripe payment intent
-        stripe_response = create_payment_intent(order.total_price, 'GBP')
+        amount = int(100 *  Decimal(order.total_price))
+        print(amount)
+        stripe_response = create_payment_intent(amount, 'GBP')
 
         #create an entry in the payment table with the response from stripe. 
         intent_id = stripe_response.id
@@ -145,17 +187,5 @@ class checkout(APIView):
 # stripe/webhook/
 @csrf_exempt
 def webhook(request):
-    handle_webhook(request.body)
-    # payload = request.body
-    # event = None
-    # try:
-    #     event = stripe.Event.construct_from(
-    #     json.loads(payload), stripe.api_key
-    #     )
-    # except ValueError as e:
-    #     # Invalid payload
-    #     return HttpResponse(status=400)
-    # #use helper func to deal with the event
-   
-
+    return handle_webhook(request.body)
 

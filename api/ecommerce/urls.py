@@ -15,4 +15,5 @@ urlpatterns = [
     path('order/', view_order.as_view(), name='view_orders'),
     path('order/<int:pk>/', view_single_order.as_view(), name='view_single_order'),
     path('checkout/<int:pk>/', checkout.as_view(), name='checkout'),
+    path('webhook/', webhook, name='stripe_webhook'),
 ]
